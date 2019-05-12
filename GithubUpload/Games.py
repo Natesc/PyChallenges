@@ -44,7 +44,7 @@ def rps():
             ties += 1
 
         # If the players choice beats the computers choice Win
-        elif (player_Choice.lower() == rock and pc_choice == scissors) or (player_Choice == scissors and pc_choice == paper) or (player_Choice.lower() == paper and pc_choice == rock):
+        elif (player_Choice.lower() == rock and pc_choice == scissors) or (player_Choice.lower() == scissors and pc_choice == paper) or (player_Choice.lower() == paper and pc_choice == rock):
             print("\nYou win!")
             wins += 1
 
