@@ -2,9 +2,6 @@ import random
 
 # Rock Paper Scissors Game
 # Goals: Greet the player, respond if they win/lose
-
-
-# Rock Paper Scissors Game
 def rps():
     # Define Basic Variables
     play_again = True
