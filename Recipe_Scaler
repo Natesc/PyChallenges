@@ -123,8 +123,6 @@ def main(url):
     # ingredients_lst = new_ingredients.split('\n')
     ingredients_lst = [i.strip(' ') for i in new_ingredients.split('\n')]
 
-    print(len(ingredients_lst))
-    print(len(scaled_lst))
     # Join the 2 lists (ingredients + amounts)
     final_scaled_lst = []
     for index, i in enumerate(scaled_lst):
@@ -139,4 +137,5 @@ def main(url):
             "Scaled Yield: " + str(scaled_amount) + "\n-----\n"
             "Scaled Ingredients:\n\n" + final_scaled_lst)
 
-main("https://www.allrecipes.com/recipe/11010/biscotti-toscani/")
+main("https://www.allrecipes.com/recipe/233146/vegan-banana-muffins/?internalSource=previously%20viewed&referring"
+     "ContentType=Homepage&clickId=cardslot%202")
