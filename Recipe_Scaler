@@ -1,14 +1,16 @@
-import requests, re
+import requests
+import re
 from decimal import Decimal
 from bs4 import BeautifulSoup
 from fractions import Fraction
 
-def main(url):
+
+def main(url, scale):
     try:
         page = requests.get(url)
     except Exception as e:
-        print(e)
-        quit()
+        return e
+
     soup = BeautifulSoup(page.content, 'html.parser')
 
     # list containing all of the ingredients.
@@ -32,8 +34,6 @@ def main(url):
     # Define the original ingredients.
     original_ingredients = '\n'.join(ingredients)
 
-    # print(original_ingredients)
-
     # Find the yield
     amount = soup.find(id="metaRecipeServings")
     original_amount = amount.get("content")
@@ -43,99 +43,105 @@ def main(url):
     recipe_name = name.get_text()
 
     # Print out the original recipe
-    print("-----\nRecipe Name: " + recipe_name + "\n"
-            "Yield: " + str(original_amount) + "\n-----\n"
-            "Ingredients:\n\n" + original_ingredients + "\n")
-    # Strip the amount from each ingredient and return a list of them.
-    numstring = re.sub(r'[a-zA-Z-]+', '', original_ingredients)
-    numlst = [i.strip(' ') for i in numstring.split('\n')]
-
-    ask = input("-----\nWould you like to scale the recipe? (yes or no): ")
-
-    while ask.lower() not in ('yes', 'no'):
-        ask = input("Invalid answer, please choose yes or no.")
-
-    if ask.lower() == 'yes':
-        scale = float(input("Amount to scale by: "))
+    if int(scale) == 1:
+        return ("-----\nRecipe Name: " + recipe_name + "\n"
+                "Yield: " + str(original_amount) + "\n-----\n"
+                "Ingredients:\n\n" + original_ingredients + "\n")
     else:
-        quit()
-    # Do math
-    scaled_lst = []
-    for i in numlst:
-        # if its a third do complicated math...
-        if i.endswith("/3") and " " not in i:
-            numerator = int(i[-3])
-            denominator = int(i[-1])
-            x = Decimal(numerator) / Decimal(denominator)
-            x = float(x)*scale
-            x = str(x)
+        # Store the (nums ounces) in a list of strings.
+        ounces = re.findall(r'\(\d+\s\w+\)|\(\d+\.\d+\s\w+\)', original_ingredients)
+        # Strip the amount from each ingredient and return a list of them.
+        numstring = re.sub(r'[a-zA-Z-,®™.]|\(\d+\s\w+\)|\(\d+\.\d+\s\w+\)', '', original_ingredients)
+        numlst = [i.strip(' ') for i in numstring.split('\n')]
 
-            Final_Fraction = int(x[0])
-            if Final_Fraction > 0:
-                if x[2] == "3":
-                    Final_Fraction = str(Final_Fraction) + " 1/3"
-                elif x[2] == "6":
-                    Final_Fraction = str(Final_Fraction) + " 2/3"
+        # Do math
+        scaled_lst = []
+
+        for i in numlst:
+            if len(i) <= 0:
+                numlst.pop(numlst.index(i))
+        for index, i in enumerate(numlst):
+            # if its a third do complicated math...
+            if i.endswith("/3") and " " not in i:
+                numerator = int(i[-3])
+                denominator = int(i[-1])
+                x = Decimal(numerator) / Decimal(denominator)
+                x = float(x)*scale
+                x = str(x)
+
+                final_fraction = int(x[0])
+                if final_fraction > 0:
+                    if x[2] == "3":
+                        final_fraction = str(final_fraction) + " 1/3"
+                    elif x[2] == "6":
+                        final_fraction = str(final_fraction) + " 2/3"
+                    else:
+                        final_fraction += 1
                 else:
-                    Final_Fraction += 1
+                    if x[2] == "3":
+                        final_fraction = "1/3"
+                    elif x[2] == "6":
+                        final_fraction = "2/3"
+                    else:
+                        final_fraction += 1
+                scaled_lst.append(final_fraction)
+
+            elif " " not in i:
+                floaters = Fraction(i) * scale
+                scaled_lst.append(str(Fraction(floaters)))
 
             else:
-                if x[2] == "3":
-                    Final_Fraction = "1/3"
-                elif x[2] == "6":
-                    Final_Fraction = "2/3"
+                whole = i[0]
+                fract = i[2::]
+
+                whole = int(int(whole) * scale)
+                fract = Fraction(fract) * scale
+                if len(str(whole) + " " + str(Fraction(fract))) > 3:
+                    scaled_lst.append(str(whole) + " " + str(Fraction(fract)))
                 else:
-                    Final_Fraction += 1
-            scaled_lst.append(Final_Fraction)
+                    whole = whole + int(Fraction(fract))
+                    scaled_lst.append(whole)
 
-        elif " " not in i:
-            floaters = Fraction(i) * scale
-            scaled_lst.append(str(Fraction(floaters)))
+        # Remove faults such as 0 1/4 teaspoon or 2 3 cups of flour.
+        for i in scaled_lst:
+            i = str(i)
+            if i[0] == "0":
+                scaled_lst[scaled_lst.index(i)] = i[2:]
 
-        else:
-            whole = i[0]
-            fract = i[2::]
+            # Match to any digits not ending in fractions
+            whole_num_lst = (re.findall(r'\d+\s\d+$', i))
+            for nums in whole_num_lst:
+                if nums:
+                    lst = nums.split(" ")
+                    lst = [int(i) for i in lst]
+                    scaled_lst[scaled_lst.index(i)] = str(sum(lst))
 
-            whole = int(int(whole) * scale)
-            fract = Fraction(fract) * scale
-            if len(str(whole) + " " + str(Fraction(fract))) > 3:
-                scaled_lst.append(str(whole) + " " + str(Fraction(fract)))
+        # Remove the previous amounts from the original ingredients list and turn it into a list.
+        new_ingredients = re.sub(r'[0-9/]|\(\d+\s\w+\)|\(\d+\.\d+\s\w+\)', '', original_ingredients)
+        ingredients_lst = [i.strip(' ') for i in new_ingredients.split('\n')]
+
+        # Join the 2 lists (ingredients + (ounces) + amounts)
+        original_ingredients_lst = original_ingredients.split("\n")
+
+        indices = []
+        for index, i in enumerate(original_ingredients_lst):
+            for z in ounces:
+                if z in i:
+                    indices.append(index)
+
+        final_scaled_lst = []
+        for index, i in enumerate(scaled_lst):
+            if index in indices:
+                new_index = indices.index(index)
+                final_scaled_lst.append(str(i) + " " + ounces[new_index] + " " + ingredients_lst[index])
             else:
-                whole = whole + int(Fraction(fract))
-                scaled_lst.append(whole)
+                final_scaled_lst.append(str(i) + " " + ingredients_lst[index])
 
-    # Remove faults such as 0 1/4 teaspoon or 2 3 cups of flour.
-    for i in scaled_lst:
-        i = str(i)
-        if i[0] == "0":
-            scaled_lst[scaled_lst.index(i)] = i[2:]
-
-        # Match to any digits not ending in fractions
-        whole_num_lst = (re.findall(r'\d+\s\d+$', i))
-        for nums in whole_num_lst:
-            if nums:
-                lst = nums.split(" ")
-                lst = [int(i) for i in lst]
-                scaled_lst[scaled_lst.index(i)] = str(sum(lst))
-
-    # Remove the previous amounts from the original ingredients list and turn it into a list.
-    new_ingredients = re.sub(r'[0-9/]+', '', original_ingredients)
-    # ingredients_lst = new_ingredients.split('\n')
-    ingredients_lst = [i.strip(' ') for i in new_ingredients.split('\n')]
-
-    # Join the 2 lists (ingredients + amounts)
-    final_scaled_lst = []
-    for index, i in enumerate(scaled_lst):
-        final_scaled_lst.append(str(i) + " " + ingredients_lst[index])
-
-    # Create a string of the list separated by a newline.
-    final_scaled_lst = '\n'.join(final_scaled_lst)
-    # Find the scaled yield
-    scaled_amount = int(int(original_amount)*scale)
-    # print out the scaled results
-    print("-----\nRecipe Name: " + recipe_name + "\n"
-            "Scaled Yield: " + str(scaled_amount) + "\n-----\n"
-            "Scaled Ingredients:\n\n" + final_scaled_lst)
-
-main("https://www.allrecipes.com/recipe/233146/vegan-banana-muffins/?internalSource=previously%20viewed&referring"
-     "ContentType=Homepage&clickId=cardslot%202")
+        # Create a string of the list separated by a newline.
+        final_scaled_lst = '\n'.join(final_scaled_lst)
+        # Find the scaled yield
+        scaled_amount = int(int(original_amount)*scale)
+        # print out the scaled results
+        return ("-----\nRecipe Name: " + recipe_name + "\n"
+                "Scaled Yield: " + str(scaled_amount) + "\n-----\n"
+                "Scaled Ingredients:\n\n" + final_scaled_lst)
